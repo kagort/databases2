@@ -2,7 +2,7 @@ from sqlalchemy import desc
 from sqlalchemy.sql import func
 
 from db import db_session
-from model import Salary
+from models import Salary
 
 
 def top_salary(num_rows):

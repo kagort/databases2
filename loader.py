@@ -1,51 +1,71 @@
 import csv
-import time
 
 from db import db_session
-from model import Salary
+from models import Company, Employee, Payment
 
 
 def read_csv(filename):
     with open(filename, 'r', encoding='utf-8') as f:
-        fields = ['name', 'city_name', 'street_address',
-                  'large_company', 'job', 'phone_number',
-                  'free_email', 'date_of_birth', 'salary']
+        fields = ['company',  'city', 'address', 'phone_company', 'name', 'job',
+                  'phone_person', 'email', 'date_of_birth', 'payment_date', 'ammount']
         reader = csv.DictReader(f, fields, delimiter=';')
+        payments_data = []
         for row in reader:
-            save_salary_data(row)
+            payments_data.append(row)
+        return payments_data
 
 
-def save_salary_data(row):
-    salary = Salary(name=row['name'], city=row['city_name'], address=row['street_address'],
-                    company=row['large_company'], job=row['job'], phone_number=row['phone_number'],
-                    email=row['free_email'], date_of_birth=row['date_of_birth'], salary=row['salary'])
-
-    db_session.add(salary)
+def save_companies(data):
+    processed = []
+    unique_companies = []
+    for row in data:
+        if row['company'] not in processed:
+            company = {"name": row["company"], "city": row["city"], "address": row["address"], "phone": row["phone_company"]}
+            unique_companies.append(company)
+            processed.append(company["name"])
+    db_session.bulk_insert_mappings(Company, unique_companies, return_defaults=True)
     db_session.commit()
+    return unique_companies
 
 
-def read_csv2(filename):
-    with open(filename, 'r', encoding='utf-8') as f:
-        fields = ['name', 'city', 'address',
-                  'company', 'job', 'phone_number',
-                  'email', 'date_of_birth', 'salary']
-        reader = csv.DictReader(f, fields, delimiter=';')
-        salary_data = []
-        for row in reader:
-            salary_data.append(row)
-        save_salary_data2(salary_data)
+def get_company_by_id(companies, company_name):
+    for company in companies:
+        if company["name"] == company_name:
+            return company["id"]
 
 
-def save_salary_data2(data):
-    db_session.bulk_insert_mappings(Salary, data)
+def save_employees(data, companies):
+    processed = []
+    unique_employees = []
+    for row in data:
+        if row["phone_person"] not in processed:
+            employee = {"name": row["name"], "job": row["job"], "phone": row["phone_person"], "email": row["email"],
+                        "date_of_birth": row["date_of_birth"], "company_id": get_company_by_id(companies, row["company"])}
+            unique_employees.append(employee)
+            processed.append(employee["phone"])
+    db_session.bulk_insert_mappings(Employee, unique_employees, return_defaults=True)
+    db_session.commit()
+    return unique_employees
+
+
+def get_employee_id(employees, phone):
+    for employee in employees:
+        if employee["phone"] == phone:
+            return employee["id"]
+
+
+def save_payments(data, employees):
+    payments = []
+    for row in data:
+        payment = {"payment_date": row["payment_date"], "ammount": row["ammount"],
+                    "employee_id": get_employee_id(employees, row["phone_person"])}
+        payments.append(payment)
+    db_session.bulk_insert_mappings(Payment, payments)
     db_session.commit()
 
 
 if __name__ == '__main__':
-    # start = time.time()
-    # read_csv('salary.csv')
-    # print(f'Загрузка1 заняла {time.time() - start} сек.')
-
-    start = time.time()
-    read_csv2('salary.csv')
-    print(f'Загрузка2 заняла {time.time() - start} сек.')
+    all_data = read_csv('salary.csv')
+    companies = save_companies(all_data)
+    employees = save_employees(all_data, companies)
+    save_payments(all_data, employees)
